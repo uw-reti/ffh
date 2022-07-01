@@ -1,0 +1,87 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2.2.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+
+// General
+
+application     GeN-Foam;
+
+startFrom       startTime;//latestTime;//
+
+startTime      	0;
+
+stopAt       	endTime;//writeNow;//  
+
+endTime        	5;
+
+deltaT          1e-2; // time step (if non adjusted)
+
+writeControl   	adjustableRunTime;//timeStep;//
+
+writeInterval   5;
+
+purgeWrite      0;
+
+writeFormat     ascii;
+
+writePrecision  6;
+
+writeCompression off;
+
+timeFormat      general;
+
+timePrecision   8;
+
+runTimeModifiable yes;
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Physics to solve
+
+solveFluidMechanics     true;
+
+solveEnergy             true;
+
+solveNeutronics         true;
+
+solveThermalMechanics   false;
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Global simulation options
+// This is the crucial flag for MSR simulations. Thanks to this: the power 
+// calculated by the neutronics will be released directly in the coolant; the 
+// delayed neutron precursors will be moved according to the collant velocity;
+// the fuel temperature will be set equal to the coolant temperature.
+
+liquidFuel  			true; 
+
+// Time step control
+
+adjustTimeStep 		true;
+
+maxDeltaT           1;
+
+maxCo               5;
+
+maxPowerVariation   0.025;
+
+// ************************************************************************* //
+
+
+
+
