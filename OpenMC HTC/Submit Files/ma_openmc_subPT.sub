@@ -1,0 +1,27 @@
+## Provide Docker container information
+universe = docker
+docker_image = openmc/openmc:latest
+
+## Name HTCondor log, stderr, stdout files
+log = mc_$(Cluster).log
+output = mc_$(Cluster).out
+error = mc_$(Cluster).err
+
+## Provide the executable and arguments for your job
+executable = ma_openmc_shPT.sh
+# arguments = 0.2
+# requirements = (if you want your job to have restrictions/requirements)  
+
+## Transfer all necessary files for the job, except the executable
+transfer_input_files = endfb71_hdf5.xz, mgxs_mafuel_chtcPT.py
+
+## Specify that HTCondor should transfer files to and from the computer where each job runs.
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+
+## Request resources needed by your job
+request_cpus = 16
+request_memory = 32GB
+request_disk = 10GB
+
+queue 1
