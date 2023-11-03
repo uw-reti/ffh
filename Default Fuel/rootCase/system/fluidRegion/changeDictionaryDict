@@ -1,0 +1,231 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2.2.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      changeDictionaryDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dictionaryReplacement
+{
+    boundary
+    {
+    minZ
+    {
+        type wedge;
+        faces
+        (
+            (0 1 2 3) 
+        );
+    }
+    maxZ
+    {
+        type wedge;
+        faces
+        (
+            (0 1 6 7)
+        );
+    }
+    }
+
+    T
+    {
+        internalField   uniform 900;
+
+        boundaryField
+        {
+            ".*"
+            {
+                type            zeroGradient;
+                value           uniform 900;
+            }
+             "fluid_to_structure" //"core_to_.*"
+            {
+                type            compressible::turbulentTemperatureCoupledBaffleMixed;
+                neighbourFieldName T;
+                kappa           fluidThermo;
+                kappaName       none;
+                value           uniform 900;
+            }
+            minZ
+            {
+                type            wedge;
+            }
+            maxZ
+            {
+                type            wedge;
+            }
+            minY
+            {
+                type            empty;
+            }
+        }
+    }
+    p
+    {
+        internalField   uniform 1e5;
+
+        boundaryField
+        {
+            ".*"
+            {
+                type            calculated;
+                value           uniform 1e5;
+            }
+            minZ
+            {
+                type            wedge;
+            }
+            maxZ
+            {
+                type            wedge;
+            }
+            minY
+            {
+                type            empty;
+            }
+        }
+    }
+
+
+    U
+    {
+        internalField   uniform (0 0 0);
+
+        boundaryField
+        {
+            ".*"
+            {
+                type            fixedValue;
+                value           uniform (0 0 0);
+            }
+            minZ
+            {
+                type            wedge;
+            }
+            maxZ
+            {
+                type            wedge;
+            }
+            minY
+            {
+                type            empty;
+            }
+        }
+    }
+
+
+    epsilon
+    {
+        internalField   uniform 0.01;
+
+        boundaryField
+        {
+            ".*"
+            {
+                type            compressible::epsilonWallFunction;
+                value           uniform 0.01;
+            }
+            minZ
+            {
+                type            wedge;
+            }
+            maxZ
+            {
+                type            wedge;
+            }
+            minY
+            {
+                type            empty;
+            }
+        }
+    }
+
+    k
+    {
+        internalField   uniform 0.1;
+
+        boundaryField
+        {
+            ".*"
+            {
+                type            compressible::kqRWallFunction;
+                value           uniform 0.1;
+            }
+            minZ
+            {
+                type            wedge;
+            }
+            maxZ
+            {
+                type            wedge;
+            }
+            minY
+            {
+                type            empty;
+            }
+        }
+    }
+
+    p_rgh
+    {
+        internalField   uniform 1e5;
+
+        boundaryField
+        {
+            ".*"
+            {
+                type            zeroGradient;//fixedFluxPressure;
+                value           uniform 1e5;
+            }
+
+            minZ
+            {
+                type            wedge;
+            }
+            maxZ
+            {
+                type            wedge;
+            }
+            minY
+            {
+                type            empty;
+            }
+        }
+    }
+
+    rhok
+    {
+        internalField   uniform 1;
+
+        boundaryField
+        {
+            minZ
+            {
+                type            wedge;
+            }
+            maxZ
+            {
+                type            wedge;
+            }
+            minY
+            {
+                type            empty;
+            }
+        }
+    }
+
+
+
+}
+
+
+// ************************************************************************* //
