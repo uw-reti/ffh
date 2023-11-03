@@ -1,0 +1,48 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2.2.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "system";
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+
+
+
+blowIn {
+    field T;
+    expressions
+    (
+        {
+            target value;
+            patchName bottom;
+            //expression "(pos().x>0 && pos().y>0) ? (1100-100*pos().x-100*pos().y) : 650";
+	    expression "818-10*mag(pos().x-0.25)-10*mag(pos().y-0.1)";
+	    //expression "670";
+        }
+    );
+} 
+/*
+blowIn {
+    field U;
+    expressions
+    (
+        {
+            target inletValue;
+            patchName bottom;
+            //expression "(pos().x>0 && pos().y>0) ? vector(0,0,0.15) : vector(0,0,0.15)";
+	    expression "vector(0,0,1.63)";
+        }
+    );
+}
+*/
+

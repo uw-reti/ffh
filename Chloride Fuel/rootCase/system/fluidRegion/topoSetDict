@@ -1,0 +1,88 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2.2.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      topoSetDict;
+}
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+actions
+(
+   
+    {
+        name    baffle;
+        type    faceSet;
+        action  new;
+        source  boxToFace;
+        sourceInfo
+        {
+            box ( 7.512 1.999 -0.33 )( 7.516 8.871 0.33);
+        }
+    }
+
+    {
+        name    baffle;
+        type    faceSet;
+        action  add;
+        source  boxToFace;
+        sourceInfo
+        {
+            box (4.249 1.999 -0.19  )(4.251 7.451 0.19 );
+        }
+    }
+    
+    {
+        name    baffle;
+        type    faceSet;
+        action  add;
+        source  boxToFace;
+        sourceInfo
+        {
+            box (2.44 3.299 -0.11  )(2.444 7.451 0.11 );
+        }
+    }    
+
+    {
+        name    baffle;
+        type    faceSet;
+        action  add;
+        source  boxToFace;
+        sourceInfo
+        {
+            box (4.249 5.959 -0.33  )(7.515 5.961 0.33 );
+        }
+    }    
+    
+    {
+        name    baffle;
+        type    faceSet;
+        action  add;
+        source  boxToFace;
+        sourceInfo
+        {
+            box (7.513 11.499 -0.37  )(8.261  11.501 0.37 );
+        }
+    }  
+   
+    {
+        name    baffle;
+        type    faceZoneSet;
+        action  new;
+        source  setToFaceZone;
+        sourceInfo
+        {
+            faceSet baffle;
+        }
+    }
+
+);
+
