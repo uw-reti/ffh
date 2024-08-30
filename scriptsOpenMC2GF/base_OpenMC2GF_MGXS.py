@@ -8,6 +8,8 @@ import openmc
 import sys
 import os
 import openmc.mgxs as mgxs
+from datetime import datetime
+import pandas as pd
 import argparse
 
 
@@ -22,26 +24,30 @@ def run_MGXS():
 
     if args.filepath:
         baseFilePath = args.filepath
-        if baseFilePath[-1] != "/":
-            baseFilePath=baseFilePath+"/"
+
+    baseFilePath = os.getcwd() + "/" + baseFilePath
+    if baseFilePath[-1] != "/":
+        baseFilePath=baseFilePath+"/"
+    print("filepath: "+baseFilePath)
 
     # Set variables as OpenMC objects for later use, default to model.xml
     if os.path.isfile(baseFilePath+"model.xml"):
         isModel=True
-        MC_model=openmc.model.from_model_xml()
+        MC_model=openmc.model.from_model_xml(f"{baseFilePath}model.xml")
         MC_mats=MC_model.materials
         MC_geom=MC_model.geometry
         MC_settings=MC_model.settings
     else:
-        MC_mats=openmc.material.from_xml()
-        MC_geom=openmc.geometry.from_xml()
-        MC_settings=openmc.settings.from_xml()
+        print((f"{baseFilePath}materials.xml"))
+        MC_mats=openmc.Materials.from_xml(f"{baseFilePath}materials.xml")
+        MC_geom=openmc.Geometry.from_xml(f"{baseFilePath}geometry.xml", materials=MC_mats)
+        MC_settings=openmc.Settings.from_xml(f"{baseFilePath}settings.xml")
 
     # Set particles if option argument exists
     if args.particles:
         batches = 100
         inactive = 10
-        particles = args.particles/batches
+        particles = int(args.particles/batches)
         MC_settings.batches = batches
         MC_settings.inactive = inactive
         MC_settings.particles = particles
@@ -49,13 +55,14 @@ def run_MGXS():
     MC_settings.output={'tallies': True}
 
     # Create an initial uniform spatial source distribution over fissionable zones
-    if openmc.geometry.bounding_box:
-        boundingBox=openmc.geometry.bounding_box
+    """     if openmc.Geometry.bounding_box:
+        boundingBox=openmc.Geometry.bounding_box
+        print(boundingBox)
         uniform_dist=openmc.stats.Box(boundingBox.lower_left, boundingBox.upper_right, only_fissionable=True)
-    else: 
-        box_bound=args.boundingBoxSize/2
-        bounds = [-box_bound, -box_bound, -box_bound, box_bound, box_bound, box_bound]
-        uniform_dist = openmc.stats.Box(bounds[:3], bounds[3:], only_fissionable=True)
+    else:  """
+    box_bound=args.boundingBoxSize/2
+    bounds = [-box_bound, -box_bound, -box_bound, box_bound, box_bound, box_bound]
+    uniform_dist = openmc.stats.Box(bounds[:3], bounds[3:], only_fissionable=True)
     MC_settings.source = openmc.Source(space=uniform_dist)
 
     # Instantiate a 6-group EnergyGroups object
@@ -142,14 +149,16 @@ def run_MGXS():
     MC_MGXS_tallies += lambda1.tallies.values()
 
     # Export to "tallies.xml"
-    MC_MGXS_tallies.export_to_xml()
+    # MC_MGXS_tallies.export_to_xml()
 
+    finalModel=openmc.Model(geometry=MC_geom, materials=MC_mats, tallies=MC_MGXS_tallies, settings=MC_settings)
+    finalModel.export_to_model_xml(path=f"{baseFilePath}MGXS_model.xml")
     # Run OpenMC
-    openmc.run()
+    openmc.run(path_input=f"{baseFilePath}MGXS_model.xml", cwd=baseFilePath)
 
     # Load the last statepoint file
     # sp = openmc.StatePoint('statepoint.60.h5') #change this with the simulation parameters 'statepoint.n.h5' n=number of batches
-    sp = openmc.StatePoint(f"statepoint.{batches}.h5")
+    sp = openmc.StatePoint(f"{baseFilePath}statepoint.{batches}.h5")
 
     # Load the tallies from the statepoint into each MGXS object
     total.load_from_statepoint(sp)
@@ -175,42 +184,42 @@ def run_MGXS():
     df.head(10)
 
     # Originally 'excel' output type, changed to csv
-    absorption.export_xs_data(filename='absorption-xs', format='csv')
-    scattering.export_xs_data(filename='scattering-xs', format='csv')
-    fission.export_xs_data(filename='fission-xs', format='csv')
-    nu_fission_matrix.export_xs_data(filename='nufissionmatrix-xs', format='csv')
-    scattering_matrix.export_xs_data(filename='scatteringmatrix-xs', format='csv')
-    total.export_xs_data(filename='total-xs', format='csv')
-    inverse_velocity.export_xs_data(filename='inverse-velocity', format='csv')
-    chi_prompt.export_xs_data(filename='chi-prompt', format='csv')
-    chi.export_xs_data(filename='chi', format='csv')
-    chi_delayed.export_xs_data(filename='chi-delayed', format='csv')
-    nuSigmaEff.export_xs_data(filename='nu-SigmaEff', format='csv')
-    diffusion_coefficient.export_xs_data(filename='diffusion-coefficient', format='csv')
-    sigmaPow.export_xs_data(filename='sigmaPow', format='csv')
-    beta.export_xs_data(filename='betaone', format='csv')
-    lambda1.export_xs_data(filename='lambdaone', format='csv')
+    absorption.export_xs_data(filename='absorption-xs', directory=f"{baseFilePath}mgxs", format='csv')
+    scattering.export_xs_data(filename='scattering-xs', directory=f"{baseFilePath}mgxs", format='csv')
+    fission.export_xs_data(filename='fission-xs', directory=f"{baseFilePath}mgxs", format='csv')
+    nu_fission_matrix.export_xs_data(filename='nufissionmatrix-xs', directory=f"{baseFilePath}mgxs", format='csv')
+    scattering_matrix.export_xs_data(filename='scatteringmatrix-xs', directory=f"{baseFilePath}mgxs", format='csv')
+    total.export_xs_data(filename='total-xs', directory=f"{baseFilePath}mgxs", format='csv')
+    inverse_velocity.export_xs_data(filename='inverse-velocity', directory=f"{baseFilePath}mgxs", format='csv')
+    chi_prompt.export_xs_data(filename='chi-prompt', directory=f"{baseFilePath}mgxs", format='csv')
+    chi.export_xs_data(filename='chi', directory=f"{baseFilePath}mgxs", format='csv')
+    chi_delayed.export_xs_data(filename='chi-delayed', directory=f"{baseFilePath}mgxs", format='csv')
+    nuSigmaEff.export_xs_data(filename='nu-SigmaEff', directory=f"{baseFilePath}mgxs", format='csv')
+    diffusion_coefficient.export_xs_data(filename='diffusion-coefficient', directory=f"{baseFilePath}mgxs", format='csv')
+    sigmaPow.export_xs_data(filename='sigmaPow', directory=f"{baseFilePath}mgxs", format='csv')
+    beta.export_xs_data(filename='betaone', directory=f"{baseFilePath}mgxs", format='csv')
+    lambda1.export_xs_data(filename='lambdaone', directory=f"{baseFilePath}mgxs", format='csv')
 
-    total.build_hdf5_store(filename='mgxs', append=True)
-    absorption.build_hdf5_store(filename='mgxs', append=True)
-    scattering.build_hdf5_store(filename='mgxs', append=True)
-    fission.build_hdf5_store(filename='mgxs', append=True)
-    nu_fission_matrix.build_hdf5_store(filename='mgxs', append=True)
-    scattering_matrix.build_hdf5_store(filename='mgxs', append=True)
-    inverse_velocity.build_hdf5_store(filename='mgxs', append=True)
-    chi_prompt.build_hdf5_store(filename='mgxs', append=True)
-    chi.build_hdf5_store(filename='mgxs', append=True)
-    chi_delayed.build_hdf5_store(filename='mgxs', append=True)
-    nuSigmaEff.build_hdf5_store(filename='mgxs', append=True)
-    diffusion_coefficient.build_hdf5_store(filename='mgxs', append=True)
-    sigmaPow.build_hdf5_store(filename='mgxs', append=True)
-    beta.build_hdf5_store(filename='mgxs', append=True)
-    lambda1.build_hdf5_store(filename='mgxs', append=True)
+    total.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    absorption.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    scattering.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    fission.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    nu_fission_matrix.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    scattering_matrix.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    inverse_velocity.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    chi_prompt.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    chi.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    chi_delayed.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    nuSigmaEff.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    diffusion_coefficient.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    sigmaPow.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    beta.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    lambda1.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
 
 
 def CSV_to_GF():
     args=parser.parse_args()
-    fileName = "./nuclearData.txt"
+    fileName = "nuclearData.txt"
     if args.csv_filepath:
         baseFilePath = args.csv_filepath
         if baseFilePath[-1] != "/":
@@ -224,7 +233,7 @@ def CSV_to_GF():
     resultsFile = "results"
 
     # Begin writing nuclearData file	
-    f = open(fileName,"w")
+    f = open(f"{baseFilePath}{fileName}","w")
 
     # Opening information
     now = datetime.now()
@@ -496,9 +505,9 @@ def CSV_to_GF():
 parser = argparse.ArgumentParser(prog="OpenMC2GF_MGXS", 
                                  description="Conversion of OpenMC Model into Cross-sections usable in a GeN-Foam simulation", 
                                  epilog="V0.1_base")
-parser.add_argument('-f', '--filepath', help='filepath where OpenMC xml files are stored')
-parser.add_argument('-p', '--particles', help='A separate option for setting the total number of active particles for XS generation')
-parser.add_argument('-b', '--boundingBoxSize', help="Side length of bounding box if it doesn't exist in the geometry (centered at origin)")
+parser.add_argument('-f', '--filepath', help='filepath where OpenMC xml files are stored (relative from run directory)', default="./")
+parser.add_argument('-p', '--particles', help='A separate option for setting the total number of active particles for XS generation', default=1000000)
+parser.add_argument('-b', '--boundingBoxSize', help="Side length of bounding box if it doesn't exist in the geometry (centered at origin)", default=1000)
 parser.add_argument('--csv_filepath', help='filepath where OpenMC csv files are stored (mgxs directory)')
 parser.add_argument('-m', '--mgxs_run', action="store_true")
 parser.add_argument('-c', '--CSV2GF_run', action="store_true")
@@ -509,9 +518,9 @@ args=parser.parse_args()
 if args.combinedRun:
     run_MGXS()
     CSV_to_GF()
+elif args.mgxs_run:
+    run_MGXS()
+elif args.CSV2GF_run:
+    CSV_to_GF()
 else:
-    if args.mgxs_run:
-        run_MGXS()
-    if args.CSV2GF_run:
-        CSV_to_GF()
-
+    print("Choose either -m (mgxs run), -c (CSV2GF run), or -mc (combined run) option")
