@@ -11,6 +11,7 @@ import openmc.mgxs as mgxs
 from datetime import datetime
 import pandas as pd
 import argparse
+import shutil
 
 
 
@@ -495,6 +496,16 @@ def CSV_to_GF():
     f.write("\n); \n")
     f.close()
 
+    if args.copyToAllRequiredFiles:
+        dataFileList=["Ksalt_pertdens", "Ksalt_perttemp", 
+                      "nuclearData", "nuclearDataFuelTemp",
+                      "nuclearDataRhoCool", "nuclearDataTCool"]
+        os.mkdir(f"{baseFilePath}/GF_neutroRegion_data")
+        originalFile = f"{baseFilePath}{fileName}"
+        for dataFileName in dataFileList:
+            shutil.copyfile(originalFile, f"{baseFilePath}/GF_neutroRegion_data/{dataFileName}")
+
+
     print("DONE")
 
 
@@ -512,6 +523,7 @@ parser.add_argument('--csv_filepath', help='filepath where OpenMC csv files are 
 parser.add_argument('-m', '--mgxs_run', action="store_true")
 parser.add_argument('-c', '--CSV2GF_run', action="store_true")
 parser.add_argument('-mc', '--combinedRun', action="store_true", help="Run OpenMC MGXS based on xml files, then run CSV2GF Conversion Script")
+parser.add_argument('-copyToAllRequiredFiles', help="Copy the produced GF data file to all files required for a transient run", default=True)
 
 
 args=parser.parse_args()
