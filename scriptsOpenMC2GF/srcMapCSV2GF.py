@@ -18,8 +18,7 @@ parser = argparse.ArgumentParser(prog="srcMap_CSV2GF",
                                  description="Script to convert csv created from this script to a GeN-Foam usable external source: https://github.com/pshriwise/openmc-src-mesh-mapping", 
                                  epilog="V0.1")
 parser.add_argument('-f', '--filepath', help='filepath where csv file lives and output should be written', default="./")
-# parser.add_argument('-n', '--filename', help='filename where the OpenMC produced source csv exists', default="mesh_src_strengths.csv")
-parser.add_argument('-df', '--defaultFluxFile', help='Filepath of default flux file to use for last section')
+parser.add_argument('-df', '--defaultFluxFile', help='Filepath of default flux file to use for formatting and boundary field section')
 args=parser.parse_args()
 
 if args.filepath[-1] != '/':
@@ -51,7 +50,8 @@ if args.defaultFluxFile is not None:
             f.write(";\n\n")
         else:
             f.write(lines)
-
+# If default flux template is not used, create from scratch
+# There are "TODO"s in places where more information needs to be added
 else:
     f.write("boundaryField \n\{\nTODO\n\}")
 
@@ -71,7 +71,8 @@ else:
     f.write("    object      defaultFlux;\n")
     f.write("}\n")
     f.write("// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\n\n")
-    f.write("dimensions      [ 0 -3 -1 0 0 0 0 ];\n\n")
+    # This TODO will be -1 for 1-D, -2 for 2-D, and -3 for 3-D
+    f.write("dimensions      [ 0 -TODO -1 0 0 0 0 ];\n\n")
 
     f.write("internalField   nonuniform List<scalar>\n")
     f.write(f"{numElements}\n")
@@ -83,6 +84,8 @@ else:
 
     f.write(")\n")
     f.write(";\n\n")
+    f.write("boundaryField\n{\nTODO\n}\n\n")
+    f.write("// ************************************************************************* //")
 
 
 f.close()
