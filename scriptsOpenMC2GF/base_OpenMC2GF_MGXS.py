@@ -15,7 +15,7 @@ import shutil
 
 
 
-def run_MGXS():
+def run_MGXS(perturbation=False):
     isModelXML=False
     MC_model=None
     args=parser.parse_args()
@@ -38,10 +38,16 @@ def run_MGXS():
         MC_geom=MC_model.geometry
         MC_settings=MC_model.settings
     else:
-        print((f"{baseFilePath}materials.xml"))
         MC_mats=openmc.Materials.from_xml(f"{baseFilePath}materials.xml")
         MC_geom=openmc.Geometry.from_xml(f"{baseFilePath}geometry.xml", materials=MC_mats)
         MC_settings=openmc.Settings.from_xml(f"{baseFilePath}settings.xml")
+
+    # Set up perturbations if it is run
+    if perturbation:
+        if args.material != -1:
+            material_ID=args.material
+
+
 
     # Set particles if option argument exists
     if args.particles:
@@ -60,7 +66,7 @@ def run_MGXS():
         print(boundingBox)
         uniform_dist=openmc.stats.Box(boundingBox.lower_left, boundingBox.upper_right, only_fissionable=True)
     else:  """
-    box_bound=args.boundingBoxSize/2
+    box_bound=float(args.boundingBoxSize)/2
     bounds = [-box_bound, -box_bound, -box_bound, box_bound, box_bound, box_bound]
     uniform_dist = openmc.stats.Box(bounds[:3], bounds[3:], only_fissionable=True)
     MC_settings.source = openmc.Source(space=uniform_dist)
@@ -95,7 +101,7 @@ def run_MGXS():
     chi=mgxs.Chi(domain=full_universe, energy_groups=groups)
     chi_delayed=mgxs.ChiDelayed(domain=full_universe, energy_groups=groups)
     nuSigmaEff=mgxs.FissionXS(domain=full_universe, energy_groups=groups, nu=True)
-    diffusion_coefficient=mgxs.DiffusionCoefficient(domain=full_universe, energy_groups=groups, nu=True) # should nu be true or false? - doesn't seem to make a difference
+    diffusion_coefficient=mgxs.DiffusionCoefficient(domain=full_universe, energy_groups=groups, nu=True) # TODO Check effect of nu true/false
     sigmaPow=mgxs.KappaFissionXS(domain=full_universe, energy_groups=groups)
     beta=mgxs.Beta(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
     lambda1=mgxs.DecayRate(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
@@ -120,7 +126,7 @@ def run_MGXS():
 
     # Load the tallies from the statepoint into each MGXS object
     for XS_objs in XS_list:
-        XS_objs.load_from_sp(sp)
+        XS_objs.load_from_statepoint(sp)
     sp.close()
 
     total.print_xs()
@@ -131,7 +137,7 @@ def run_MGXS():
     csv_filenames=['total-xs', 'absorption-xs', 'scattering-xs', 'fission-xs', 'nufissionmatrix-xs', 'scatteringmatrix-xs', 'inverse-velocity', 
                'chi-prompt', 'chi', 'chi-delayed', 'nu-SigmaEff', 'diffusion-coefficient', 'sigmaPow', 'betaone', 'lambdaone']
     for i in range(0,np.size(csv_filenames)):
-        XS_list[i].export_xs_data(filename=csv_filenames, directory=f"{baseFilePath}mgxs", format='csv')
+        XS_list[i].export_xs_data(filename=csv_filenames[i], directory=f"{baseFilePath}mgxs", format='csv')
     for XS_objs in XS_list:
         XS_objs.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
 
@@ -172,7 +178,7 @@ def CSV_to_GF():
 
     # prompt generation and delayed parameters
     # Kinetics properties have to be defined at the beginning of the file
-    fileString+="\npromptGenerationTime %.2e;\n" % 6.70e-07 # TODO Calculate a new value for this for each fuel
+    fileString+="\npromptGenerationTime TODO;\n" # Default: 6.70e-07 # TODO Calculate a new value for this for each fuel
 
     energyGroups = 6
     precGroups = 6
@@ -182,18 +188,10 @@ def CSV_to_GF():
 
 
     # Beta (note this is not beta_eff yet, it is the default beta from OpenMC)
-    df = pd.read_csv(f"{base_filepath_csvs}betaone.csv")
-    i=0
-    for row in df['mean']:
-        beta_eff[i] = row
-        i += 1 
+    beta_eff = pd.read_csv(f"{base_filepath_csvs}betaone.csv")['mean']
 
     # Lambda
-    df = pd.read_csv(f"{base_filepath_csvs}lambdaone.csv")
-    i=0
-    for row in df['mean']:
-        decay_const[i] = row
-        i += 1 
+    decay_const = pd.read_csv(f"{base_filepath_csvs}lambdaone.csv")['mean']
 
     # Initial print beta 
     fileString+="\nBeta (%s  )" % str(' '.join(['{:.6e}'.format(x) for x in beta_eff])) + ";\n"
@@ -257,57 +255,29 @@ def CSV_to_GF():
     # Fill variable lists with data from OpenMC
 
     # inverse velocity
-    df = pd.read_csv(f"{base_filepath_csvs}inverse-velocity.csv")
-    i=0
-    for row in df['mean']:
-        inv_velocity[i] = row*cmm
-        i += 1 
+    inv_velocity = pd.read_csv(f"{base_filepath_csvs}inverse-velocity.csv")['mean']*cmm
 
     # Diffusion Coefficient
-    df = pd.read_csv(f"{base_filepath_csvs}diffusion-coefficient.csv")
-    i=0
-    for row in df['mean']:
-        diffCoeff[i] = row/cmm
-        i += 1
+    diffCoeff = pd.read_csv(f"{base_filepath_csvs}diffusion-coefficient.csv")['mean']/cmm
 
     # nusigmaf
-    df = pd.read_csv(f"{base_filepath_csvs}nu-SigmaEff.csv")
-    i=0
-    for row in df['mean']:
-        nusigmaf[i] = row*cmm
-        i += 1 
+    nusigmaf = pd.read_csv(f"{base_filepath_csvs}nu-SigmaEff.csv")['mean']*cmm
         
     # sigmaPow
-    df = pd.read_csv(f"{base_filepath_csvs}sigmaPow.csv")
-    i=0
-    for row in df['mean']:
-        sigmaFissPow[i] = row*cmm*ev2j
-        i += 1
+    sigmaFissPow = pd.read_csv(f"{base_filepath_csvs}sigmaPow.csv")['mean']*cmm*ev2j
 
     # sigmaDisapp (TOTAL - SCATTERING) with transport correction accounted for
-    df = pd.read_csv(f"{base_filepath_csvs}total-xs.csv")
-    i=0
-    for row in df['mean']:
-        total[i] = row*cmm
-        i += 1 
+    total = pd.read_csv(f"{base_filepath_csvs}total-xs.csv")['mean']*cmm
 
     # Scattering Matrix
-    df = pd.read_csv(f"{base_filepath_csvs}scatteringmatrix-xs.csv")
-    i=0
-    j=0
-    for row in df['mean']:
-        scattering_P0[i][j] = row*cmm
-        j += 1
-        if j == 6:
-            i += 1 
-            j = 0
+    scattering_P0_temp = pd.read_csv(f"{base_filepath_csvs}scatteringmatrix-xs.csv")['mean']*cmm
+    scattering_P0=np.zeros([6,6])
+    for i in range(0,6): 
+        for j in range(0,6):
+            scattering_P0[i][j] = scattering_P0_temp[i*6+j]
 
     # Scattering XS (array)
-    df = pd.read_csv(f"{base_filepath_csvs}scattering-xs.csv")
-    i=0
-    for row in df['mean']:
-        scattering[i] = row*cmm
-        i += 1 
+    scattering = pd.read_csv(f"{base_filepath_csvs}scattering-xs.csv")['mean']*cmm
 
     # Define off-diagonal sum (ODS) of scattering matrix terms for each group
     for i in range(0,5):
@@ -330,43 +300,16 @@ def CSV_to_GF():
         sigmaDisapp[i] = total[i] - scattering_NTC[i]
 
     # chi_prompt
-    df = pd.read_csv(f"{base_filepath_csvs}chi-prompt.csv")
-    i=0
-    for row in df['mean']:
-        chi_prompt[i] = row
-        i += 1 
+    chi_prompt = pd.read_csv(f"{base_filepath_csvs}chi-prompt.csv")['mean']
 
     # chi_delayed
-    df = pd.read_csv(f"{base_filepath_csvs}chi-delayed.csv")
-    i=0
-    for row in df['mean']:
-        chi_delayed[i] = row
-        i += 1 
-
-    # Scattering Matrix
-    df = pd.read_csv(f"{base_filepath_csvs}scatteringmatrix-xs.csv")
-    i=0
-    j=0
-    for row in df['mean']:
-        scattering_P0[i][j] = row*cmm
-        j += 1
-        if j == 6:
-            i += 1 
-            j = 0
+    chi_delayed = pd.read_csv(f"{base_filepath_csvs}chi-delayed.csv")['mean']
 
     # Beta (note this is not beta_eff yet, it is the default beta from OpenMC)
-    df = pd.read_csv(f"{base_filepath_csvs}betaone.csv")
-    i=0
-    for row in df['mean']:
-        beta_eff[i] = row
-        i += 1 
+    beta_eff = pd.read_csv(f"{base_filepath_csvs}betaone.csv")['mean']
 
     # Lambda
-    df = pd.read_csv(f"{base_filepath_csvs}lambdaone.csv")
-    i=0
-    for row in df['mean']:
-        decay_const[i] = row
-        i += 1 
+    decay_const = pd.read_csv(f"{base_filepath_csvs}lambdaone.csv")['mean']
 
     # Start writing nuclearData with zones
     fileString="\nzones \n ( \n"
@@ -386,7 +329,7 @@ def CSV_to_GF():
         fileString+="\n scatteringMatrixP0 %i %i (\n" % (energyGroups, energyGroups)
 
         # Energy groups
-        for i in range (energyGroups):
+        for i in range(energyGroups):
             fileString+=" ("
             fileString+=str(' '.join(['{:.6e}'.format(x) for x in scattering_P0[i][:]])) + " )\n"
         fileString+=" );\n"
@@ -409,6 +352,7 @@ def CSV_to_GF():
     f.write(fileString)
     f.close()
 
+    # TODO fix. Need to have perturbed states
     if args.copyToAllRequiredFiles:
         dataFileList=["Ksalt_pertdens", "Ksalt_perttemp", 
                       "nuclearData", "nuclearDataFuelTemp",
@@ -420,9 +364,6 @@ def CSV_to_GF():
 
 
     print("DONE")
-
-
-
 
 
 # Create argparser for some non-required variables such as filepath
@@ -437,9 +378,11 @@ parser.add_argument('-m', '--mgxs_run', action="store_true")
 parser.add_argument('-c', '--CSV2GF_run', action="store_true")
 parser.add_argument('-mc', '--combinedRun', action="store_true", help="Run OpenMC MGXS based on xml files, then run CSV2GF Conversion Script")
 parser.add_argument('-copyToAllRequiredFiles', help="Copy the produced GF data file to all files required for a transient run", default=True)
-
+parser.add_argument('-mat', '--material', help='material ID used for temperature and density perturbation', default=False)
 
 args=parser.parse_args()
+print("Choose either -m (mgxs run), -c (CSV2GF run), or -mc (combined run) option")
+print("To enable density and temperature perturbations, use the -mat or --material flag")
 if args.combinedRun:
     run_MGXS()
     CSV_to_GF()
@@ -447,5 +390,7 @@ elif args.mgxs_run:
     run_MGXS()
 elif args.CSV2GF_run:
     CSV_to_GF()
-else:
-    print("Choose either -m (mgxs run), -c (CSV2GF run), or -mc (combined run) option")
+
+if args.material:
+    run_MGXS(perturbation='rho')
+    run_MGXS(perturbation='temp')
