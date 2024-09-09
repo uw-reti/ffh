@@ -20,16 +20,15 @@ def run_MGXS():
     MC_model=None
     args=parser.parse_args()
 
-    # Allow for base filepath other than CWD
-    baseFilePath=""
-
+    # Allow for base filepath other than CWD, set base file path
     if args.filepath:
         baseFilePath = args.filepath
+    else:
+        baseFilePath=""
 
     baseFilePath = os.getcwd() + "/" + baseFilePath
     if baseFilePath[-1] != "/":
         baseFilePath=baseFilePath+"/"
-    print("filepath: "+baseFilePath)
 
     # Set variables as OpenMC objects for later use, default to model.xml
     if os.path.isfile(baseFilePath+"model.xml"):
@@ -83,6 +82,7 @@ def run_MGXS():
     # Currently homogenizing over the entire universe
     # Could change this to directly convert models with multiple regions/materials
     full_universe=MC_geom.root_universe
+
     # Instantiate more than a few different sections
     total = mgxs.TotalXS(domain=full_universe, energy_groups=groups)
     absorption = mgxs.AbsorptionXS(domain=full_universe, energy_groups=groups)
@@ -100,57 +100,15 @@ def run_MGXS():
     beta=mgxs.Beta(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
     lambda1=mgxs.DecayRate(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
 
+    XS_list=[total,absorption,scattering,fission,nu_fission_matrix,scattering_matrix,inverse_velocity,
+             chi_prompt,chi,chi_delayed,nuSigmaEff,diffusion_coefficient,sigmaPow,beta,lambda1]
 
     # Instantiate an empty Tallies object
     MC_MGXS_tallies = openmc.Tallies()
 
-    # Add total tallies to the tallies file
-    MC_MGXS_tallies += total.tallies.values()
-
-    # Add absorption tallies to the tallies file
-    MC_MGXS_tallies += absorption.tallies.values()
-
-    # Add scattering tallies to the tallies file
-    MC_MGXS_tallies += scattering.tallies.values()
-
-    # Add fission tallies to the tallies file
-    MC_MGXS_tallies += fission.tallies.values()
-
-    # Add nu_fission_matrix tallies to the tallies file
-    MC_MGXS_tallies += nu_fission_matrix.tallies.values()
-
-    # Add scattering_matrix tallies to the tallies file
-    MC_MGXS_tallies += scattering_matrix.tallies.values()
-
-    # Add inverse velocity tallies to the tallies file
-    MC_MGXS_tallies += inverse_velocity.tallies.values()
-
-    # Add nuSigmaEff tallies to the tallies file
-    MC_MGXS_tallies += nuSigmaEff.tallies.values()
-
-    # Add chi prompt tallies to the tallies file
-    MC_MGXS_tallies += chi_prompt.tallies.values()
-
-    # Add chi tallies to the tallies file
-    MC_MGXS_tallies += chi.tallies.values()
-
-    # Add chi delayed tallies to the tallies file
-    MC_MGXS_tallies += chi_delayed.tallies.values()
-
-    # Add diffusion coefficient tallies to the tallies file
-    MC_MGXS_tallies += diffusion_coefficient.tallies.values()
-
-    # Add sigmaPow tallies to the tallies file
-    MC_MGXS_tallies += sigmaPow.tallies.values()
-
-    # Add beta tallies to the tallies file
-    MC_MGXS_tallies += beta.tallies.values()
-
-    # Add lambda tallies to the tallies file
-    MC_MGXS_tallies += lambda1.tallies.values()
-
-    # Export to "tallies.xml"
-    # MC_MGXS_tallies.export_to_xml()
+    # Add all tallies to the tallies file
+    for XS_objs in XS_list:
+        MC_MGXS_tallies += XS_objs.tallies.values()
 
     finalModel=openmc.Model(geometry=MC_geom, materials=MC_mats, tallies=MC_MGXS_tallies, settings=MC_settings)
     finalModel.export_to_model_xml(path=f"{baseFilePath}MGXS_model.xml")
@@ -158,78 +116,37 @@ def run_MGXS():
     openmc.run(path_input=f"{baseFilePath}MGXS_model.xml", cwd=baseFilePath)
 
     # Load the last statepoint file
-    # sp = openmc.StatePoint('statepoint.60.h5') #change this with the simulation parameters 'statepoint.n.h5' n=number of batches
     sp = openmc.StatePoint(f"{baseFilePath}statepoint.{batches}.h5")
 
     # Load the tallies from the statepoint into each MGXS object
-    total.load_from_statepoint(sp)
-    absorption.load_from_statepoint(sp)
-    scattering.load_from_statepoint(sp)
-    fission.load_from_statepoint(sp)
-    nu_fission_matrix.load_from_statepoint(sp)
-    scattering_matrix.load_from_statepoint(sp)
-    inverse_velocity.load_from_statepoint(sp)
-    chi_prompt.load_from_statepoint(sp)
-    chi.load_from_statepoint(sp)
-    chi_delayed.load_from_statepoint(sp)
-    nuSigmaEff.load_from_statepoint(sp)
-    diffusion_coefficient.load_from_statepoint(sp)
-    sigmaPow.load_from_statepoint(sp)
-    beta.load_from_statepoint(sp)
-    lambda1.load_from_statepoint(sp)
-    # Close the statepoint file now that we're done getting info
+    for XS_objs in XS_list:
+        XS_objs.load_from_sp(sp)
     sp.close()
 
     total.print_xs()
     df = scattering.get_pandas_dataframe()
     df.head(10)
 
-    # Originally 'excel' output type, changed to csv
-    absorption.export_xs_data(filename='absorption-xs', directory=f"{baseFilePath}mgxs", format='csv')
-    scattering.export_xs_data(filename='scattering-xs', directory=f"{baseFilePath}mgxs", format='csv')
-    fission.export_xs_data(filename='fission-xs', directory=f"{baseFilePath}mgxs", format='csv')
-    nu_fission_matrix.export_xs_data(filename='nufissionmatrix-xs', directory=f"{baseFilePath}mgxs", format='csv')
-    scattering_matrix.export_xs_data(filename='scatteringmatrix-xs', directory=f"{baseFilePath}mgxs", format='csv')
-    total.export_xs_data(filename='total-xs', directory=f"{baseFilePath}mgxs", format='csv')
-    inverse_velocity.export_xs_data(filename='inverse-velocity', directory=f"{baseFilePath}mgxs", format='csv')
-    chi_prompt.export_xs_data(filename='chi-prompt', directory=f"{baseFilePath}mgxs", format='csv')
-    chi.export_xs_data(filename='chi', directory=f"{baseFilePath}mgxs", format='csv')
-    chi_delayed.export_xs_data(filename='chi-delayed', directory=f"{baseFilePath}mgxs", format='csv')
-    nuSigmaEff.export_xs_data(filename='nu-SigmaEff', directory=f"{baseFilePath}mgxs", format='csv')
-    diffusion_coefficient.export_xs_data(filename='diffusion-coefficient', directory=f"{baseFilePath}mgxs", format='csv')
-    sigmaPow.export_xs_data(filename='sigmaPow', directory=f"{baseFilePath}mgxs", format='csv')
-    beta.export_xs_data(filename='betaone', directory=f"{baseFilePath}mgxs", format='csv')
-    lambda1.export_xs_data(filename='lambdaone', directory=f"{baseFilePath}mgxs", format='csv')
-
-    total.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    absorption.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    scattering.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    fission.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    nu_fission_matrix.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    scattering_matrix.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    inverse_velocity.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    chi_prompt.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    chi.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    chi_delayed.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    nuSigmaEff.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    diffusion_coefficient.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    sigmaPow.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    beta.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
-    lambda1.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
+    # Export XS data as csv files for use in the CSV_TO_GF function
+    csv_filenames=['total-xs', 'absorption-xs', 'scattering-xs', 'fission-xs', 'nufissionmatrix-xs', 'scatteringmatrix-xs', 'inverse-velocity', 
+               'chi-prompt', 'chi', 'chi-delayed', 'nu-SigmaEff', 'diffusion-coefficient', 'sigmaPow', 'betaone', 'lambdaone']
+    for i in range(0,np.size(csv_filenames)):
+        XS_list[i].export_xs_data(filename=csv_filenames, directory=f"{baseFilePath}mgxs", format='csv')
+    for XS_objs in XS_list:
+        XS_objs.build_hdf5_store(filename='mgxs', directory=f"{baseFilePath}mgxs", append=True)
 
 
 def CSV_to_GF():
     args=parser.parse_args()
     fileName = "nuclearData.txt"
+    baseFilePath=""
+    # Deal with potential filepath arguments
     if args.csv_filepath:
         baseFilePath = args.csv_filepath
-        if baseFilePath[-1] != "/":
-            baseFilePath=baseFilePath+"/"
-
     elif args.filepath:
         baseFilePath = args.filepath
-        if baseFilePath[-1] != "/":
-            baseFilePath=baseFilePath+"/"
+    if baseFilePath[-1] != "/":
+        baseFilePath=baseFilePath+"/"
     base_filepath_csvs = baseFilePath+"mgxs/"
     resultsFile = "results"
 
@@ -241,20 +158,21 @@ def CSV_to_GF():
 
     dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
 
-    f.write("/*\n crossSection dictionary\n Generated by OpenMC2FoamXS \n %s\n OpenMC results file: %s\n" % (dt_string, resultsFile))
+    fileString=""
 
-    f.write("\neffective delayed neutron fraction, prompt neutron spectrum\n*/\n")
-
-    f.write("\nFoamFile\n{\n    version     2.0;\n    format      ascii;\n    class       dictionary;\n    location    constant;\n    object      %s;\n}\n" % resultsFile);
+    # File header
+    fileString+="/*\n crossSection dictionary\n Generated by OpenMC2FoamXS \n %s\n OpenMC results file: %s\n" % (dt_string, resultsFile)
+    fileString+="\neffective delayed neutron fraction, prompt neutron spectrum\n*/\n"
+    fileString+="\nFoamFile\n{\n    version     2.0;\n    format      ascii;\n    class       dictionary;\n    location    constant;\n    object      %s;\n}\n" % resultsFile
 
     # Initial simulation parameters
-    f.write("\nfastNeutrons %s;\n" % '         true' )
-    f.write("\nadjustDiscFactors %s;\n" % '    false' )
-    f.write("\nuseGivenDiscFactors %s;\n" % '  false' )
+    fileString+="\nfastNeutrons %s;\n" % '         true' 
+    fileString+="\nadjustDiscFactors %s;\n" % '    false' 
+    fileString+="\nuseGivenDiscFactors %s;\n" % '  false'
 
     # prompt generation and delayed parameters
     # Kinetics properties have to be defined at the beginning of the file
-    f.write("\npromptGenerationTime %.2e;\n" % 6.70e-07) #Calculate a new value for this
+    fileString+="\npromptGenerationTime %.2e;\n" % 6.70e-07 # TODO Calculate a new value for this for each fuel
 
     energyGroups = 6
     precGroups = 6
@@ -278,33 +196,35 @@ def CSV_to_GF():
         i += 1 
 
     # Initial print beta 
-    f.write("\nBeta (%s  )" % str(' '.join(['{:.6e}'.format(x) for x in beta_eff])) + ";\n")
+    fileString+="\nBeta (%s  )" % str(' '.join(['{:.6e}'.format(x) for x in beta_eff])) + ";\n"
 
     # Initial print decay constants for precursors
-    f.write("\nlambda (%s  )" % str(' '.join(['{:.6e}'.format(x) for x in decay_const])) + ";\n")
+    fileString+="\nlambda (%s  )" % str(' '.join(['{:.6e}'.format(x) for x in decay_const])) + ";\n"
 
     # Feedback coefficients
-    f.write("\nfeedbackCoeffFastDoppler %.9f;\n" % 2.2808e-05) #Calculate a new value for this
-    f.write("\nfeedbackCoeffTFuel %i;\n" % 0)
-    f.write("\nfeedbackCoeffTClad %i;\n" % 0)
-    f.write("\nfeedbackCoeffTCool %i;\n" % 0)
-    # f.write("\nfeedbackCoeffRhoCool %.5e;\n" % 4.55597e-05) #Calculate a new value for this
-    f.write("\nfeedbackCoeffRhoCool %.5e;\n" % 14.2138e-05) #Calculate a new value for this
-    f.write("\nfeedbackCoeffTStruct %i;\n" % 0)
-    f.write("\nabsoluteDrivelineExpansionCoeff %i;\n" % 0)
-    f.write("\ncontrolRodReactivityMap %s; \n" % "( ( 0.1 -0.01 ) ( 0 0 ) ( -0.1 0.01 ) )")
+    # Many of these require new values for each fuel
+    fileString+="\nfeedbackCoeffFastDoppler TODO;\n" # default: 2.2808e-05
+    fileString+="\nfeedbackCoeffTFuel TODO;\n" # default: 0
+    fileString+="\nfeedbackCoeffTClad TODO;\n" # default: 0
+    fileString+="\nfeedbackCoeffTCool TODO;\n" # default: 0
+    fileString+="\nfeedbackCoeffRhoCool TODO;\n" # default: 4.55597e-05
+    fileString+="\nfeedbackCoeffTStruct TODO;\n" # default: 0
+    fileString+="\nabsoluteDrivelineExpansionCoeff TODO;\n" # default: 0
+    fileString+="\ncontrolRodReactivityMap ( ( 0.1 -0.01 ) ( 0 0 ) ( -0.1 0.01 ) ); \n" 
 
     # Write Number of energy & precursor groups
-    f.write("\ninitPrecursorsLiquidFuel %s;\n\n" % 'true' )
-    f.write("\n energyGroups %i ;\n" % energyGroups)
-    f.write("\n precGroups %i ;\n" % precGroups)
+    fileString+="\ninitPrecursorsLiquidFuel %s;\n\n" % 'true' 
+    fileString+="\n energyGroups %i ;\n" % energyGroups
+    fileString+="\n precGroups %i ;\n" % precGroups
 
     # Write the main nuclear data
+    f.write(fileString)
+    fileString=""
 
     # Add array of region names here, may need another for loop to cycle through the different regions
     OF_NAME = ["hx","intermed","main_fd","pump"]  # The name of the GeN-Foam mesh region this cross section is for
 
-    # Data for GeN-Foam
+    # Data required for GeN-Foam
     fuel_fraction = 1.000000e+00        # The volumetric fuel fraction
     inv_velocity  = [0, 0, 0, 0, 0, 0]  # m/s
     diffCoeff     = [0, 0, 0, 0, 0, 0]  # 
@@ -332,7 +252,7 @@ def CSV_to_GF():
     # fuel_fraction_all = [fuel_fraction_zone1, fuel_fraction_zone2, fuel_fraction_zone3]
     # for zone in (OF_NAME):
     #   for i in range(OF_NAME): 
-    #       f.write("  fuelFraction %s ; \n" % "{:.6e}".format(fuel_fraction[i]))
+    #       fileString+="  fuelFraction %s ; \n" % "{:.6e}".format(fuel_fraction[i])
 
     # Fill variable lists with data from OpenMC
 
@@ -390,14 +310,19 @@ def CSV_to_GF():
         i += 1 
 
     # Define off-diagonal sum (ODS) of scattering matrix terms for each group
-    scattering_ODS[0] = scattering_P0[0][1] + scattering_P0[0][2] + scattering_P0[0][3] + scattering_P0[0][4] + scattering_P0[0][5]
+    for i in range(0,5):
+        scattering_ODS[i] = sum(scattering_P0[i][(i+1):5])
+    scattering_ODS[5]=0
+
+    """ scattering_ODS[0] = scattering_P0[0][1] + scattering_P0[0][2] + scattering_P0[0][3] + scattering_P0[0][4] + scattering_P0[0][5]
     scattering_ODS[1] = scattering_P0[1][2] + scattering_P0[1][3] + scattering_P0[1][4] + scattering_P0[1][5]
     scattering_ODS[2] = scattering_P0[2][3] + scattering_P0[2][4] + scattering_P0[2][5]
     scattering_ODS[3] = scattering_P0[3][4] + scattering_P0[3][5]
     scattering_ODS[4] = scattering_P0[4][5]
-    scattering_ODS[5] = 0
+    scattering_ODS[5] = 0 """
 
-    # Subtract ODS from scattering for Non-Transport-Corrected Scattering (NTC)? Still not sure exactly how this works
+    # Subtract ODS from scattering for Non-Transport-Corrected Scattering (NTC)?
+    # TODO check this calculation/definition
     scattering_NTC = np.subtract(scattering, scattering_ODS)
 
     # Finally write sigmaDisapp
@@ -410,7 +335,6 @@ def CSV_to_GF():
     for row in df['mean']:
         chi_prompt[i] = row
         i += 1 
-    print('chi_prompt: ', chi_prompt)
 
     # chi_delayed
     df = pd.read_csv(f"{base_filepath_csvs}chi-delayed.csv")
@@ -444,56 +368,45 @@ def CSV_to_GF():
         decay_const[i] = row
         i += 1 
 
-    # Start writing nuclearData
-    f.write("\nzones \n ( \n")
+    # Start writing nuclearData with zones
+    fileString="\nzones \n ( \n"
 
     for zone in (OF_NAME):
-        f.write("\n%s \n{ \n" % zone)
+        fileString+="\n%s \n{ \n" % zone
 
-        f.write(" fuelFraction %s ; \n" % "{:.6e}".format(fuel_fraction) + "\n")
+        fileString+=" fuelFraction %s ; \n" % "{:.6e}".format(fuel_fraction) + "\n"
+        fileString+=" IV nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in inv_velocity])) + "  );\n"
 
-        f.write(" IV nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in inv_velocity])) + "  );\n")
+        # Groupwise diffusion coefficientsm nuSigma and fission powers
+        fileString+="\n D nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in diffCoeff])) + "  );\n"
+        fileString+="\n nuSigmaEff nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in nusigmaf])) + "  );\n"
+        fileString+="\n sigmaPow nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in sigmaFissPow])) + "  );\n"
 
-        # Print groupwise diffusion coefficients
-        f.write("\n D nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in diffCoeff])) + "  );\n")
+        # Scattering production matrix - P0 only
+        fileString+="\n scatteringMatrixP0 %i %i (\n" % (energyGroups, energyGroups)
 
-        # Print groupwise nu sigma f
-        f.write("\n nuSigmaEff nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in nusigmaf])) + "  );\n")
-
-        # Print groupwise fission powers
-        f.write("\n sigmaPow nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in sigmaFissPow])) + "  );\n")
-
-        # Print scattering production matrix - P0 only
-        f.write("\n scatteringMatrixP0 %i %i (\n" % (energyGroups, energyGroups))
-
+        # Energy groups
         for i in range (energyGroups):
-            f.write(" (")
-            f.write(str(' '.join(['{:.6e}'.format(x) for x in scattering_P0[i][:]])) + " )\n")
-        f.write(" );\n")
+            fileString+=" ("
+            fileString+=str(' '.join(['{:.6e}'.format(x) for x in scattering_P0[i][:]])) + " )\n"
+        fileString+=" );\n"
 
-        # Print sigma absorption
-
-        f.write("\n sigmaDisapp nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in sigmaDisapp])) + "  );\n") # sigmaAbs 0.85 keff
-
-        f.write("\n chiPrompt nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in chi_prompt])) + "  );\n")
-
-        f.write("\n chiDelayed nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in chi_delayed])) + "  );\n")
-
-        # Print beta 
-        f.write("\n Beta nonuniform List<scalar> %i (" % precGroups + str(' '.join(['{:.6e}'.format(x) for x in beta_eff])) + "  );\n")
-
-        # Print decay constants for precursors
-        f.write("\n lambda nonuniform List<scalar> %i (" % precGroups + str(' '.join(['{:.6e}'.format(x) for x in decay_const])) + "  );\n")
-
+        # Other groupwise data
+        fileString+="\n sigmaDisapp nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in sigmaDisapp])) + "  );\n"
+        fileString+="\n chiPrompt nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in chi_prompt])) + "  );\n"
+        fileString+="\n chiDelayed nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in chi_delayed])) + "  );\n"
+        # Beta 
+        fileString+="\n Beta nonuniform List<scalar> %i (" % precGroups + str(' '.join(['{:.6e}'.format(x) for x in beta_eff])) + "  );\n"
+        # Decay constants for precursors
+        fileString+="\n lambda nonuniform List<scalar> %i (" % precGroups + str(' '.join(['{:.6e}'.format(x) for x in decay_const])) + "  );\n"
         # Disc factors - use generic unity matrix
-        f.write("\n discFactor nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in generic_6])) + "  );\n")
-
+        fileString+="\n discFactor nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in generic_6])) + "  );\n"
         # Print integral fluxes 
-        f.write("\n integralFlux nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in generic_6])) + "  );\n")
+        fileString+="\n integralFlux nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in generic_6])) + "  );\n"
+        fileString+="\n }\n"
 
-        f.write("\n }\n")
-
-    f.write("\n); \n")
+    fileString+="\n); \n"
+    f.write(fileString)
     f.close()
 
     if args.copyToAllRequiredFiles:
