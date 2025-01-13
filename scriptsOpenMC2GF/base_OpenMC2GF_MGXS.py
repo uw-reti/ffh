@@ -69,10 +69,10 @@ def run_MGXS(perturbation=""):
     if args.particles:
         batches = 100
         inactive = 10
-        particles = int(args.particles/batches)
+        particles = int(args.particles)/int(batches)
         MC_settings.batches = batches
         MC_settings.inactive = inactive
-        MC_settings.particles = particles
+        MC_settings.particles = int(particles)
 
     MC_settings.output={'tallies': True}
     MC_settings.temperature = {'method' : 'interpolation'}
@@ -89,7 +89,7 @@ def run_MGXS(perturbation=""):
     MC_settings.source = openmc.Source(space=uniform_dist)
 
     # Instantiate a 6-group EnergyGroups object
-    groups = mgxs.EnergyGroups()
+    groups = mgxs.EnergyGroups(np.array([0., 748.5, 5531.0, 24790.0, 497900.0, 2.231e6, 20.0e6]))
     groups.group_edges = np.array([0., 748.5, 5531.0, 24790.0, 497900.0, 2.231e6, 20.0e6])
 
     # Instantiate a 100-group EnergyGroups object - not used
@@ -97,7 +97,7 @@ def run_MGXS(perturbation=""):
     # supergroup.group_edges = np.logspace(-3, 7.3, 101)
 
     # Instantiate a 1-group EnergyGroups object - used for delayed properties
-    one_group = mgxs.EnergyGroups()
+    one_group = mgxs.EnergyGroups(np.array([groups.group_edges[0], groups.group_edges[-1]]))
     one_group.group_edges = np.array([groups.group_edges[0], groups.group_edges[-1]])
 
     delayed_groups = list(range(1,7)) # 6 delayed groups
@@ -109,10 +109,14 @@ def run_MGXS(perturbation=""):
     # Instantiate more than a few different sections
     total = mgxs.TotalXS(domain=full_universe, energy_groups=groups)
     absorption = mgxs.AbsorptionXS(domain=full_universe, energy_groups=groups)
+    red_absorption = mgxs.ReducedAbsorptionXS(domain=full_universe, energy_groups=groups)
     scattering = mgxs.ScatterXS(domain=full_universe, energy_groups=groups)
     fission = mgxs.FissionXS(domain=full_universe, energy_groups=groups, nu=False)
     nu_fission_matrix = mgxs.NuFissionMatrixXS(domain=full_universe, energy_groups=groups)
-    scattering_matrix = mgxs.ScatterMatrixXS(domain=full_universe, energy_groups=groups)
+    scattering_matrix = mgxs.ScatterMatrixXS(domain=full_universe, energy_groups=groups, nu=True)
+    # scattering_matrix = mgxs.ScatterMatrixXS(domain=full_universe, energy_groups=groups, nu=False)
+    # scattering_matrix.formulation='consistent'
+    # scattering_matrix.correction=None
     inverse_velocity = mgxs.InverseVelocity(domain=full_universe, energy_groups=groups)
     chi_prompt=mgxs.Chi(domain=full_universe, energy_groups=groups, prompt=True)
     chi=mgxs.Chi(domain=full_universe, energy_groups=groups)
@@ -123,7 +127,7 @@ def run_MGXS(perturbation=""):
     beta=mgxs.Beta(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
     lambda1=mgxs.DecayRate(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
 
-    XS_list=[total,absorption,scattering,fission,nu_fission_matrix,scattering_matrix,inverse_velocity,
+    XS_list=[total,red_absorption,absorption,scattering,fission,nu_fission_matrix,scattering_matrix,inverse_velocity,
              chi_prompt,chi,chi_delayed,nuSigmaEff,diffusion_coefficient,sigmaPow,beta,lambda1]
 
     # Instantiate an empty Tallies object
@@ -151,7 +155,7 @@ def run_MGXS(perturbation=""):
     df.head(10)
 
     # Export XS data as csv files for use in the CSV_TO_GF function
-    csv_filenames=['total-xs', 'absorption-xs', 'scattering-xs', 'fission-xs', 'nufissionmatrix-xs', 'scatteringmatrix-xs', 'inverse-velocity', 
+    csv_filenames=['total-xs', 'redabsorption-xs', 'absorption-xs', 'scattering-xs', 'fission-xs', 'nufissionmatrix-xs', 'scatteringmatrix-xs', 'inverse-velocity', 
                'chi-prompt', 'chi', 'chi-delayed', 'nu-SigmaEff', 'diffusion-coefficient', 'sigmaPow', 'betaone', 'lambdaone']
     for i in range(0,np.size(csv_filenames)):
         XS_list[i].export_xs_data(filename=f"{perturbation}{csv_filenames[i]}", directory=f"{baseFilePath}mgxs", format='csv')
@@ -302,6 +306,8 @@ def CSV_to_GF(perturbation=""):
 
     # sigmaDisapp (TOTAL - SCATTERING) with transport correction accounted for
     total = pd.read_csv(f"{base_filepath_csvs}total-xs.csv")['mean']*cmm
+    absorption = pd.read_csv(f"{base_filepath_csvs}absorption-xs.csv")['mean']*cmm
+    red_absorption = pd.read_csv(f"{base_filepath_csvs}redabsorption-xs.csv")['mean']*cmm
 
     # Scattering Matrix
     scattering_P0_temp = pd.read_csv(f"{base_filepath_csvs}scatteringmatrix-xs.csv")['mean']*cmm
@@ -314,9 +320,12 @@ def CSV_to_GF(perturbation=""):
     scattering = pd.read_csv(f"{base_filepath_csvs}scattering-xs.csv")['mean']*cmm
 
     # Define off-diagonal sum (ODS) of scattering matrix terms for each group
-    for i in range(0,5):
-        scattering_ODS[i] = sum(scattering_P0[i][(i+1):5])
-    scattering_ODS[5]=0
+    for i in range(0,6):
+        # scattering_ODS[i] = sum(scattering_P0[i][(i+1):5])
+        scattering_ODS[i] = sum(scattering_P0[i][:]) - scattering_P0[i][i]
+        # print(scattering_P0[i][:])
+    # scattering_ODS[5]=0
+    print(scattering_ODS)
 
     """ scattering_ODS[0] = scattering_P0[0][1] + scattering_P0[0][2] + scattering_P0[0][3] + scattering_P0[0][4] + scattering_P0[0][5]
     scattering_ODS[1] = scattering_P0[1][2] + scattering_P0[1][3] + scattering_P0[1][4] + scattering_P0[1][5]
@@ -331,7 +340,10 @@ def CSV_to_GF(perturbation=""):
 
     # Finally write sigmaDisapp
     for i in range(len(sigmaDisapp)):
+        # sigmaDisapp[i] = total[i] - scattering_NTC[i]
         sigmaDisapp[i] = total[i] - scattering_NTC[i]
+        sigmaDisapp[i] = red_absorption[i] + scattering_ODS[i]
+    print(sigmaDisapp)
 
     # chi_prompt
     chi_prompt = pd.read_csv(f"{base_filepath_csvs}chi-prompt.csv")['mean']
