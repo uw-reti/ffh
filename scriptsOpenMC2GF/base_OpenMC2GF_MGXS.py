@@ -15,7 +15,7 @@ import shutil
 
 
 
-def run_MGXS(perturbation=""):
+def run_MGXS(perturbation=None):
     MC_model=None
     args=parser.parse_args()
 
@@ -38,29 +38,34 @@ def run_MGXS(perturbation=""):
     else:
         MC_mats=openmc.Materials.from_xml(f"{baseFilePath}materials.xml")
         MC_geom=openmc.Geometry.from_xml(f"{baseFilePath}geometry.xml", materials=MC_mats)
-        MC_settings=openmc.Settings.from_xml(f"{baseFilePath}settings.xml")
+        # MC_settings=openmc.Settings.from_xml(f"{baseFilePath}settings.xml")
+        MC_settings=openmc.Settings()
         
 
     # Set up perturbations if it is run
     if perturbation:
-        global original_value
-        global perturbed_value
+        global original_value_rho
+        global perturbed_value_rho
+        global original_value_temp
+        global perturbed_value_temp
         for i in range(0,np.size(MC_mats)):
             if int(MC_mats[i].id) == int(args.mat_id):
                 perturbed_mat=MC_mats[i]
                 mat_list_position=i
+        # Do the rho perturbation (X1.1)
         if perturbation == "rho":
             rho_mat=perturbed_mat.density
-            original_value = rho_mat
+            original_value_rho = rho_mat
             MC_mats[mat_list_position].set_density('g/cm3',rho_mat*1.1)
-            perturbed_value = rho_mat*1.1
+            perturbed_value_rho = rho_mat*1.1
             # TODO create a way to output the perturbed state files
 
+        # Do temperature perturbation (X1.2)
         elif perturbation == "temp":
             t_mat=perturbed_mat.temperature
-            original_value = t_mat
+            original_value_temp = t_mat
             MC_mats[mat_list_position].temperature = t_mat*1.2
-            perturbed_value = t_mat*1.2
+            perturbed_value_temp = t_mat*1.2
             # TODO create a way to output the perturbed state files
     else:
         perturbation=""
@@ -73,6 +78,12 @@ def run_MGXS(perturbation=""):
         MC_settings.batches = batches
         MC_settings.inactive = inactive
         MC_settings.particles = int(particles)
+    
+    if args.fusion:
+        point = openmc.stats.Point((0,0,0))
+        source = openmc.Source(space=point, energy=openmc.stats.Discrete(14.1, 1))
+        MC_settings.source = source
+        MC_settings.run_mode = 'fixed source'
 
     MC_settings.output={'tallies': True}
     MC_settings.temperature = {'method' : 'interpolation'}
@@ -115,6 +126,7 @@ def run_MGXS(perturbation=""):
     nu_fission_matrix = mgxs.NuFissionMatrixXS(domain=full_universe, energy_groups=groups)
     scattering_matrix = mgxs.ScatterMatrixXS(domain=full_universe, energy_groups=groups, nu=True)
     # scattering_matrix = mgxs.ScatterMatrixXS(domain=full_universe, energy_groups=groups, nu=False)
+    # scattering_matrix = mgxs.ScatterMatrixXS(domain=full_universe, energy_groups=groups)
     # scattering_matrix.formulation='consistent'
     # scattering_matrix.correction=None
     inverse_velocity = mgxs.InverseVelocity(domain=full_universe, energy_groups=groups)
@@ -122,7 +134,7 @@ def run_MGXS(perturbation=""):
     chi=mgxs.Chi(domain=full_universe, energy_groups=groups)
     chi_delayed=mgxs.ChiDelayed(domain=full_universe, energy_groups=groups)
     nuSigmaEff=mgxs.FissionXS(domain=full_universe, energy_groups=groups, nu=True)
-    diffusion_coefficient=mgxs.DiffusionCoefficient(domain=full_universe, energy_groups=groups, nu=True) # TODO Check effect of nu true/false
+    diffusion_coefficient=mgxs.DiffusionCoefficient(domain=full_universe, energy_groups=groups, nu=False) # TODO Check effect of nu true/false
     sigmaPow=mgxs.KappaFissionXS(domain=full_universe, energy_groups=groups)
     beta=mgxs.Beta(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
     lambda1=mgxs.DecayRate(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
@@ -181,7 +193,7 @@ def writeHeader():
     return fnWriteString
 
 
-def CSV_to_GF(perturbation=""):
+def CSV_to_GF(perturbation=None):
     args=parser.parse_args()
     fileName = "nuclearData.txt"
     baseFilePath=""
@@ -221,8 +233,8 @@ def CSV_to_GF(perturbation=""):
     energyGroups = 6
     precGroups = 6
 
-    beta_eff      = [0, 0, 0, 0, 0, 0]  
-    decay_const   = [0, 0, 0, 0, 0, 0] 
+    beta_eff      = np.zeros(energyGroups)  
+    decay_const   = np.zeros(precGroups) 
 
 
     # Beta (note this is not beta_eff yet, it is the default beta from OpenMC)
@@ -262,22 +274,22 @@ def CSV_to_GF(perturbation=""):
 
     # Data required for GeN-Foam
     fuel_fraction = 1.000000e+00        # The volumetric fuel fraction
-    inv_velocity  = [0, 0, 0, 0, 0, 0]  # m/s
-    diffCoeff     = [0, 0, 0, 0, 0, 0]  # 
-    nusigmaf      = [0, 0, 0, 0, 0, 0]  # 
-    sigmaFissPow  = [0, 0, 0, 0, 0, 0]  # 
-    scattering_P0 = [[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0]]   # 
-    scattering    = [0, 0, 0, 0, 0, 0]  # used to calculate sigmaDisapp
-    scattering_ODS= [0, 0, 0, 0, 0, 0]  # used to calculate sigmaDisapp
-    sigmaDisapp   = [0, 0, 0, 0, 0, 0]  # 
-    chi_prompt    = [0, 0, 0, 0, 0, 0]  # 
-    chi_delayed   = [0, 0, 0, 0, 0, 0]  # 
-    beta_eff      = [0, 0, 0, 0, 0, 0]  #
-    decay_const   = [0, 0, 0, 0, 0, 0]  #
-    generic_6     = [1, 1, 1, 1, 1, 1]  # Used for any arrays that are all 1 (discFactor, integralFlux)
-    absorption    = [0, 0, 0, 0, 0, 0]  # 
-    fission       = [0, 0, 0, 0, 0, 0]  # 
-    total         = [0, 0, 0, 0, 0, 0]  # used to calculate sigmaDisapp
+    inv_velocity  = np.zeros(energyGroups)  # s/cm
+    diffCoeff     = np.zeros(energyGroups)  # 
+    nusigmaf      = np.zeros(energyGroups)  # 
+    sigmaFissPow  = np.zeros(energyGroups)  # 
+    scattering_P0 = np.zeros((energyGroups, energyGroups))   # 
+    scattering    = np.zeros(energyGroups)  # used to calculate sigmaDisapp
+    scattering_ODS= np.zeros(energyGroups)  # used to calculate sigmaDisapp
+    sigmaDisapp   = np.zeros(energyGroups)  # 
+    chi_prompt    = np.zeros(energyGroups)  # 
+    chi_delayed   = np.zeros(energyGroups)  # 
+    beta_eff      = np.zeros(energyGroups)  #
+    decay_const   = np.zeros(precGroups)  #
+    generic_6     = np.ones(energyGroups)  # Used for any arrays that are all 1 (discFactor, integralFlux)
+    absorption    = np.zeros(energyGroups)  # 
+    fission       = np.zeros(energyGroups)  # 
+    total         = np.zeros(energyGroups)  # used to calculate sigmaDisapp
     cmm           = 100                 # used to convert from cm^-1 to m^-1
     ev2j         = 1.602176487e-19      # used to convert eV to J
 
@@ -311,28 +323,17 @@ def CSV_to_GF(perturbation=""):
 
     # Scattering Matrix
     scattering_P0_temp = pd.read_csv(f"{base_filepath_csvs}scatteringmatrix-xs.csv")['mean']*cmm
-    scattering_P0=np.zeros([6,6])
-    for i in range(0,6): 
-        for j in range(0,6):
-            scattering_P0[i][j] = scattering_P0_temp[i*6+j]
+    scattering_P0=np.zeros([energyGroups,energyGroups])
+    for i in range(0,energyGroups): 
+        for j in range(0,energyGroups):
+            scattering_P0[i][j] = scattering_P0_temp[i*energyGroups+j]
 
     # Scattering XS (array)
     scattering = pd.read_csv(f"{base_filepath_csvs}scattering-xs.csv")['mean']*cmm
 
     # Define off-diagonal sum (ODS) of scattering matrix terms for each group
-    for i in range(0,6):
-        # scattering_ODS[i] = sum(scattering_P0[i][(i+1):5])
+    for i in range(0,energyGroups):
         scattering_ODS[i] = sum(scattering_P0[i][:]) - scattering_P0[i][i]
-        # print(scattering_P0[i][:])
-    # scattering_ODS[5]=0
-    print(scattering_ODS)
-
-    """ scattering_ODS[0] = scattering_P0[0][1] + scattering_P0[0][2] + scattering_P0[0][3] + scattering_P0[0][4] + scattering_P0[0][5]
-    scattering_ODS[1] = scattering_P0[1][2] + scattering_P0[1][3] + scattering_P0[1][4] + scattering_P0[1][5]
-    scattering_ODS[2] = scattering_P0[2][3] + scattering_P0[2][4] + scattering_P0[2][5]
-    scattering_ODS[3] = scattering_P0[3][4] + scattering_P0[3][5]
-    scattering_ODS[4] = scattering_P0[4][5]
-    scattering_ODS[5] = 0 """
 
     # Subtract ODS from scattering for Non-Transport-Corrected Scattering (NTC)?
     # TODO check this calculation/definition
@@ -341,9 +342,7 @@ def CSV_to_GF(perturbation=""):
     # Finally write sigmaDisapp
     for i in range(len(sigmaDisapp)):
         # sigmaDisapp[i] = total[i] - scattering_NTC[i]
-        sigmaDisapp[i] = total[i] - scattering_NTC[i]
         sigmaDisapp[i] = red_absorption[i] + scattering_ODS[i]
-    print(sigmaDisapp)
 
     # chi_prompt
     chi_prompt = pd.read_csv(f"{base_filepath_csvs}chi-prompt.csv")['mean']
@@ -367,7 +366,7 @@ def CSV_to_GF(perturbation=""):
         fileString+=" IV nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in inv_velocity])) + "  );\n"
 
         # Groupwise diffusion coefficientsm nuSigma and fission powers
-        fileString+="\n D nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in diffCoeff])) + "  );\n"
+        fileString+="\n D nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in (diffCoeff)])) + "  );\n"
         fileString+="\n nuSigmaEff nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in nusigmaf])) + "  );\n"
         fileString+="\n sigmaPow nonuniform List<scalar> %i (" % energyGroups + str(' '.join(['{:.6e}'.format(x) for x in sigmaFissPow])) + "  );\n"
 
@@ -412,11 +411,11 @@ def CSV_to_GF(perturbation=""):
 def export_perturbed(perturbation=""):
     fnWriteString=""
     if perturbation == 'rho':
-        fnWriteString += f"rhoCoolRef {original_value} ;\n"
-        fnWriteString += f"rhoCoolPerturbed {perturbed_value};\n"
+        fnWriteString += f"rhoCoolRef {original_value_rho} ;\n"
+        fnWriteString += f"rhoCoolPerturbed {perturbed_value_rho};\n"
     elif perturbation == 'temp':
-        fnWriteString += f"TfuelRef {original_value} ;\n" 
-        fnWriteString += f"TfuelPerturbed {perturbed_value} ; \n"
+        fnWriteString += f"TfuelRef {original_value_rho} ;\n" 
+        fnWriteString += f"TfuelPerturbed {perturbed_value_rho} ; \n"
     else:
         raise Exception("Unhandled perturbation")
     return fnWriteString
@@ -436,6 +435,7 @@ parser.add_argument('-m', '--mgxs_run', action="store_true")
 parser.add_argument('-c', '--CSV2GF_run', action="store_true")
 # parser.add_argument('-copyToAllRequiredFiles', help="Copy the produced GF data file to all files required for a transient run", default=True)
 parser.add_argument('-i', '--mat_id', help='The material ID used for temperature and density perturbation, a non-zero argument here will enable perturbation', default=False)
+parser.add_argument('-fus', '--fusion', action="store_true")
 
 args=parser.parse_args()
 

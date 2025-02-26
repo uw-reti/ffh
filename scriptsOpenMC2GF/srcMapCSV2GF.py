@@ -20,13 +20,13 @@ parser = argparse.ArgumentParser(prog="srcMap_CSV2GF",
 parser.add_argument('-f', '--filepath', help='filepath where csv file lives and output should be written', default="./")
 parser.add_argument('-df', '--defaultFluxFile', help='Filepath of default flux file to use for formatting and boundary field section')
 args=parser.parse_args()
-
+filePath="./"
 if args.filepath[-1] != '/':
     filePath=args.filepath+'/'
 else:
     filePath=args.filepath
 
-csv_data = np.genfromtxt(f"{filePath}mesh_src_strengths.csv", delimiter=',',dtype=None)
+csv_data = np.genfromtxt(f"{filePath}mesh_src_strengths.csv", delimiter=',',dtype=None, encoding=None)
 numElements=np.size(csv_data,0)-1
 
 
@@ -53,8 +53,6 @@ if args.defaultFluxFile is not None:
 # If default flux template is not used, create from scratch
 # There are "TODO"s in places where more information needs to be added
 else:
-    f.write("boundaryField \n\{\nTODO\n\}")
-
     f.write("/*--------------------------------*- C++ -*----------------------------------*\ \n")
     f.write("|       ______          _   __           ______                               |\n")
     f.write("|      / ____/  ___    / | / /          / ____/  ____   ____ _   ____ ___     |\n")
@@ -72,7 +70,7 @@ else:
     f.write("}\n")
     f.write("// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\n\n")
     # This TODO will be -1 for 1-D, -2 for 2-D, and -3 for 3-D
-    f.write("dimensions      [ 0 -TODO -1 0 0 0 0 ];\n\n")
+    f.write("dimensions      [ 0 -3 -1 0 0 0 0 ];\n\n")
 
     f.write("internalField   nonuniform List<scalar>\n")
     f.write(f"{numElements}\n")
