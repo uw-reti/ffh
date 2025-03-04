@@ -38,17 +38,14 @@ def run_MGXS(perturbation=None):
     else:
         MC_mats=openmc.Materials.from_xml(f"{baseFilePath}materials.xml")
         MC_geom=openmc.Geometry.from_xml(f"{baseFilePath}geometry.xml", materials=MC_mats)
-        # MC_settings=openmc.Settings.from_xml(f"{baseFilePath}settings.xml")
-        MC_settings=openmc.Settings()
+        MC_settings=openmc.Settings.from_xml(f"{baseFilePath}settings.xml")
         
 
     # Set up perturbations if it is run
     if perturbation:
-        global original_value_rho
-        global perturbed_value_rho
-        global original_value_temp
-        global perturbed_value_temp
-        for i in range(0,np.size(MC_mats)):
+        global original_value_rho, perturbed_value_rho
+        global original_value_temp, perturbed_value_temp
+        for i in range(np.size(MC_mats)):
             if int(MC_mats[i].id) == int(args.mat_id):
                 perturbed_mat=MC_mats[i]
                 mat_list_position=i
@@ -89,23 +86,16 @@ def run_MGXS(perturbation=None):
     MC_settings.temperature = {'method' : 'interpolation'}
 
     # Create an initial uniform spatial source distribution over fissionable zones
-    """     if openmc.Geometry.bounding_box:
-        boundingBox=openmc.Geometry.bounding_box
-        print(boundingBox)
-        uniform_dist=openmc.stats.Box(boundingBox.lower_left, boundingBox.upper_right, only_fissionable=True)
-    else:  """
     box_bound=float(args.boundingBoxSize)/2
     bounds = [-box_bound, -box_bound, -box_bound, box_bound, box_bound, box_bound]
     uniform_dist = openmc.stats.Box(bounds[:3], bounds[3:], only_fissionable=True)
     MC_settings.source = openmc.Source(space=uniform_dist)
 
     # Instantiate a 6-group EnergyGroups object
-    groups = mgxs.EnergyGroups(np.array([0., 748.5, 5531.0, 24790.0, 497900.0, 2.231e6, 20.0e6]))
-    groups.group_edges = np.array([0., 748.5, 5531.0, 24790.0, 497900.0, 2.231e6, 20.0e6])
+    groups = mgxs.EnergyGroups(group_edges=np.array([0., 748.5, 5531.0, 24790.0, 497900.0, 2.231e6, 20.0e6]))
 
-    # Instantiate a 100-group EnergyGroups object - not used
-    # supergroup = mgxs.EnergyGroups()
-    # supergroup.group_edges = np.logspace(-3, 7.3, 101)
+    # Example of instantiating a 100-group EnergyGroups object - not used
+    # supergroup = mgxs.EnergyGroups(group_edges = np.logspace(-3, 7.3, 101))
 
     # Instantiate a 1-group EnergyGroups object - used for delayed properties
     one_group = mgxs.EnergyGroups(np.array([groups.group_edges[0], groups.group_edges[-1]]))
@@ -125,16 +115,12 @@ def run_MGXS(perturbation=None):
     fission = mgxs.FissionXS(domain=full_universe, energy_groups=groups, nu=False)
     nu_fission_matrix = mgxs.NuFissionMatrixXS(domain=full_universe, energy_groups=groups)
     scattering_matrix = mgxs.ScatterMatrixXS(domain=full_universe, energy_groups=groups, nu=True)
-    # scattering_matrix = mgxs.ScatterMatrixXS(domain=full_universe, energy_groups=groups, nu=False)
-    # scattering_matrix = mgxs.ScatterMatrixXS(domain=full_universe, energy_groups=groups)
-    # scattering_matrix.formulation='consistent'
-    # scattering_matrix.correction=None
     inverse_velocity = mgxs.InverseVelocity(domain=full_universe, energy_groups=groups)
     chi_prompt=mgxs.Chi(domain=full_universe, energy_groups=groups, prompt=True)
     chi=mgxs.Chi(domain=full_universe, energy_groups=groups)
     chi_delayed=mgxs.ChiDelayed(domain=full_universe, energy_groups=groups)
     nuSigmaEff=mgxs.FissionXS(domain=full_universe, energy_groups=groups, nu=True)
-    diffusion_coefficient=mgxs.DiffusionCoefficient(domain=full_universe, energy_groups=groups, nu=False) # TODO Check effect of nu true/false
+    diffusion_coefficient=mgxs.DiffusionCoefficient(domain=full_universe, energy_groups=groups, nu=False)
     sigmaPow=mgxs.KappaFissionXS(domain=full_universe, energy_groups=groups)
     beta=mgxs.Beta(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
     lambda1=mgxs.DecayRate(domain=full_universe, energy_groups=one_group, delayed_groups=delayed_groups)
@@ -169,7 +155,7 @@ def run_MGXS(perturbation=None):
     # Export XS data as csv files for use in the CSV_TO_GF function
     csv_filenames=['total-xs', 'redabsorption-xs', 'absorption-xs', 'scattering-xs', 'fission-xs', 'nufissionmatrix-xs', 'scatteringmatrix-xs', 'inverse-velocity', 
                'chi-prompt', 'chi', 'chi-delayed', 'nu-SigmaEff', 'diffusion-coefficient', 'sigmaPow', 'betaone', 'lambdaone']
-    for i in range(0,np.size(csv_filenames)):
+    for i in range(np.size(csv_filenames)):
         XS_list[i].export_xs_data(filename=f"{perturbation}{csv_filenames[i]}", directory=f"{baseFilePath}mgxs", format='csv')
     for XS_objs in XS_list:
         XS_objs.build_hdf5_store(filename=f'{perturbation}mgxs', directory=f"{baseFilePath}mgxs", append=True)
@@ -293,15 +279,6 @@ def CSV_to_GF(perturbation=None):
     cmm           = 100                 # used to convert from cm^-1 to m^-1
     ev2j         = 1.602176487e-19      # used to convert eV to J
 
-    ## Example in case data is different for each zone
-    # fuel_fraction_zone1 = 1.000000e-01
-    # fuel_fraction_zone2 = 1.000000e-01
-    # fuel_fraction_zone3 = 1.000000e-01
-    # fuel_fraction_all = [fuel_fraction_zone1, fuel_fraction_zone2, fuel_fraction_zone3]
-    # for zone in (OF_NAME):
-    #   for i in range(OF_NAME): 
-    #       fileString+="  fuelFraction %s ; \n" % "{:.6e}".format(fuel_fraction[i])
-
     # Fill variable lists with data from OpenMC
 
     # inverse velocity
@@ -324,24 +301,22 @@ def CSV_to_GF(perturbation=None):
     # Scattering Matrix
     scattering_P0_temp = pd.read_csv(f"{base_filepath_csvs}scatteringmatrix-xs.csv")['mean']*cmm
     scattering_P0=np.zeros([energyGroups,energyGroups])
-    for i in range(0,energyGroups): 
-        for j in range(0,energyGroups):
+    for i in range(energyGroups): 
+        for j in range(energyGroups):
             scattering_P0[i][j] = scattering_P0_temp[i*energyGroups+j]
 
     # Scattering XS (array)
     scattering = pd.read_csv(f"{base_filepath_csvs}scattering-xs.csv")['mean']*cmm
 
     # Define off-diagonal sum (ODS) of scattering matrix terms for each group
-    for i in range(0,energyGroups):
+    for i in range(energyGroups):
         scattering_ODS[i] = sum(scattering_P0[i][:]) - scattering_P0[i][i]
 
-    # Subtract ODS from scattering for Non-Transport-Corrected Scattering (NTC)?
-    # TODO check this calculation/definition
+    # Subtract ODS from scattering for Non-Transport-Corrected Scattering (NTC)
     scattering_NTC = np.subtract(scattering, scattering_ODS)
 
     # Finally write sigmaDisapp
-    for i in range(len(sigmaDisapp)):
-        # sigmaDisapp[i] = total[i] - scattering_NTC[i]
+    for i,_ in enumerate(sigmaDisapp):
         sigmaDisapp[i] = red_absorption[i] + scattering_ODS[i]
 
     # chi_prompt
@@ -397,7 +372,7 @@ def CSV_to_GF(perturbation=None):
     f.write(fileString)
     f.close()
 
-    """ # TODO delete
+    """ # Function may be utilized in future versions
     if args.copyToAllRequiredFiles:
         dataFileList=["Ksalt_pertdens", "Ksalt_perttemp", 
                       "nuclearData", "nuclearDataFuelTemp",
@@ -455,6 +430,5 @@ if args.mat_id:
             run_MGXS(perturbation=perts)
         if args.CSV2GF_run:
             CSV_to_GF(perturbation=perts)
-            # export_perturbed(perturbation=perts)
     
 print("DONE")

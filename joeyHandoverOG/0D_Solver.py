@@ -14,8 +14,7 @@ p1 = 1
 
 # Absorption
 absp = [0, 0, 0, 0, 0, 0]
-# df = pd.read_csv(r"\\wsl$\Ubuntu\home\jeickman\testbin\OpenMC\for_joey_8_22\cross_section_gen\mgxs\absorption-xs.csv")
-df = pd.read_csv("~/Desktop/ffh/scriptsOpenMC2GF/testing/MOSART_fuel/mgxs/absorption-xs.csv")
+df = pd.read_csv("./mgxs/absorption-xs.csv")
 i=0
 for row in df['mean']:
     absp[i] = row*cmm
@@ -23,8 +22,7 @@ for row in df['mean']:
 print('absorption: ', absp)
 # Scattering
 sct = [[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 0, 0]]
-# df = pd.read_csv(r"\\wsl$\Ubuntu\home\jeickman\testbin\OpenMC\for_joey_8_22\cross_section_gen\mgxs\scatteringmatrix-xs.csv")
-df = pd.read_csv("~/Desktop/ffh/scriptsOpenMC2GF/testing/MOSART_fuel/mgxs/scatteringmatrix-xs.csv")
+df = pd.read_csv("./mgxs/scatteringmatrix-xs.csv")
 i=0
 j=0
 for row in df['mean']:
@@ -36,8 +34,7 @@ for row in df['mean']:
 print('scattering: ',sct)
 # NuFission
 nf = [0, 0, 0, 0, 0, 0]
-# df = pd.read_csv(r"\\wsl$\Ubuntu\home\jeickman\testbin\OpenMC\for_joey_8_22\cross_section_gen\mgxs\nu-SigmaEff.csv")
-df = pd.read_csv("~/Desktop/ffh/scriptsOpenMC2GF/testing/MOSART_fuel/mgxs/nu-SigmaEff.csv")
+df = pd.read_csv("./mgxs/nu-SigmaEff.csv")
 i=0
 for row in df['mean']:
     nf[i] = row*cmm
@@ -45,8 +42,7 @@ for row in df['mean']:
 print('nufission: ', nf)
 # Chi
 chi = [0, 0, 0, 0, 0, 0]
-# df = pd.read_csv(r"\\wsl$\Ubuntu\home\jeickman\testbin\OpenMC\for_joey_8_22\cross_section_gen\mgxs\chi.csv")
-df = pd.read_csv("~/Desktop/ffh/scriptsOpenMC2GF/testing/MOSART_fuel/mgxs/chi.csv")
+df = pd.read_csv("./mgxs/chi.csv")
 i=0
 for row in df['mean']:
     chi[i] = row
