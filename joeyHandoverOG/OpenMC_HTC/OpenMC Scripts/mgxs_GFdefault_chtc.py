@@ -113,11 +113,11 @@ settings_file.source = openmc.Source(space=uniform_dist)
 settings_file.export_to_xml()
 
 # Instantiate a 6-group EnergyGroups object
-groups = mgxs.EnergyGroups()
+groups = mgxs.EnergyGroups(group_edges=[0., 748.5, 5531.0, 24790.0, 497900.0, 2.231e6, 20.0e6])
 groups.group_edges = np.array([0., 748.5, 5531.0, 24790.0, 497900.0, 2.231e6, 20.0e6]) #need to change these for thermal/epithermal reactor?
 
 # Instantiate a 1-group EnergyGroups object - used for delayed properties
-one_group = mgxs.EnergyGroups()
+one_group = mgxs.EnergyGroups([groups.group_edges[0], groups.group_edges[-1]])
 one_group.group_edges = np.array([groups.group_edges[0], groups.group_edges[-1]])
 
 delayed_groups = list(range(1,7)) # 6 delayed groups
@@ -196,7 +196,7 @@ tallies_file += lambda1.tallies.values()
 tallies_file.export_to_xml()
 
 # Run OpenMC
-openmc.run(mpi_args=['mpirun','-np','16'])
+openmc.run()
 
 # Rename the statepoint file
 os.rename('statepoint.550.h5', 'GFDstatepoint.550.h5')
